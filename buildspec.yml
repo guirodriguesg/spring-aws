@@ -1,0 +1,38 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      java: corretto11
+  pre_build:
+    commands:
+      - echo Loggin in to Amazon ECR...
+      #This line execute the login command to the ECR
+      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 533267200170.dkr.ecr.us-east-1.amazonaws.com
+      - echo Defining the repository URI...
+      - REPOSITORY_URI=533267200170.dkr.ecr.us-east-1.amazonaws.com/spring-sample
+      - echo Building the Docker image...
+      - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Running maven command to build the project...
+      - mvn clean install
+      - echo Building the Docker image...
+      - docker build -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Writing image definitions file...
+      - DOCKER_CONTAINER_NAME=spirng-aws-sample-container
+      - echo '[{"name":"spring-aws-sample-container","imageUri":"'$REPOSITORY_URI:$IMAGE_TAG'"}]' > imagedefinitions.json
+      - echo $DOCKER_CONTAINER_NAME
+      - echo printing image definitions file...
+      - cat imagedefinitions.json
+artifacts:
+  files:
+    - imagedefinitions.json
+    - target/spring-aws.jar
